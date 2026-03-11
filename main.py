@@ -7,17 +7,20 @@ app = Flask(__name__)
 
 # Подключение к БД
 DATABASE_URL = os.environ.get('DATABASE_URL')
+conn = None
 if DATABASE_URL:
-    url = urlparse(DATABASE_URL)
-    conn = psycopg2.connect(
-        database=url.path[1:],
-        user=url.username,
-        password=url.password,
-        host=url.hostname,
-        port=url.port
-    )
-else:
-    conn = None
+    try:
+        url = urlparse(DATABASE_URL)
+        conn = psycopg2.connect(
+            database=url.path[1:],
+            user=url.username,
+            password=url.password,
+            host=url.hostname,
+            port=url.port
+        )
+    except psycopg2.OperationalError as e:
+        print(f"Could not connect to database: {e}")
+
 
 # Создание таблицы при старте
 if conn:
@@ -30,6 +33,19 @@ if conn:
             )
         """)
         conn.commit()
+
+@app.route('/')
+def hello():
+    return "Hello, Serverless! 🚀\n", 200, {'Content-Type': 'text/plain'}
+
+@app.route('/echo', methods=['POST'])
+def echo():
+    data = request.get_json()
+    return jsonify({
+        "status": "received",
+        "you_sent": data,
+        "length": len(str(data)) if data else 0
+    })
 
 @app.route('/save', methods=['POST'])
 def save_message():
@@ -56,3 +72,6 @@ def get_messages():
 
     messages = [{"id": r[0], "text": r[1], "time": r[2].isoformat()} for r in rows]
     return jsonify(messages)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
